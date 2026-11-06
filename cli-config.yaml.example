@@ -1224,6 +1224,13 @@ skills:
 # Agent Behavior
 # =============================================================================
 agent:
+  # Image delivery: auto uses native model vision unless an auxiliary.vision backend
+  # is pinned; native/text force the corresponding lane. Tool transport vetoes remain.
+  image_input_mode: "auto"
+  # In auto, prefer a capable active model's native vision even with a pinned describer.
+  # Text-only/unknown models still use auxiliary.vision. YAML boolean only (no quotes).
+  vision_capability_first: false
+
   # Maximum tool-calling iterations per conversation (default: 500)
   # Higher = more room for complex tasks, but costs more tokens
   # Recommended: 20-30 for focused tasks, 50-100 for open exploration

@@ -1058,12 +1058,13 @@ def validate_config_structure(config: Optional[dict[str, Any]] = None) -> list[C
         except Exception as exc:
             from hermes_cli.config_home import config_load_issue
             return [config_load_issue(exc)]
-
     from hermes_cli.config_value_checks import (
-        _validate_quoted_containers, _validate_timezone, _validate_voice, _validate_web_backends)
+        _validate_quoted_containers, _validate_timezone, _validate_vision_capability_first,
+        _validate_voice, _validate_web_backends)
     issues: list[ConfigIssue] = []
     _validate_voice(config, issues)
     _validate_timezone(config, issues)
+    _validate_vision_capability_first(config, issues)
     cp = config.get("custom_providers")
     fb = config.get("fallback_model")
     for value, validator in ((cp, _validate_custom_providers), (fb, _validate_fallback_model)):
@@ -1073,7 +1074,6 @@ def validate_config_structure(config: Optional[dict[str, Any]] = None) -> list[C
     if isinstance(cp, dict) and "fallback_model" not in config and "fallback_model" in (cp or {}):
         _issue(issues, "error", "fallback_model appears inside custom_providers instead of at root level",
                "Move fallback_model to the top level of config.yaml (no indentation)")
-
     if cp and not config.get("model"):
         _issue(issues, "warning",
                "custom_providers defined but no 'model' section — Hermes won't know which provider to use",

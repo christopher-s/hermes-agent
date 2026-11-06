@@ -4,9 +4,11 @@
 ``vision_analyze`` up-front and prepends the lossy description (right for
 non-vision models). :func:`decide_image_input_mode` picks once per turn from
 ``agent.image_input_mode`` (``auto`` | ``native`` | ``text``): in ``auto`` an
-explicit ``auxiliary.vision`` backend forces ``text`` even for vision-capable
-main models (``native`` is the absolute override); else ``supports_vision``
-(config override or catalog) decides. ``vision_analyze`` stays a tool regardless.
+explicit ``auxiliary.vision`` backend selects ``text`` even for vision-capable
+main models, unless ``agent.vision_capability_first`` is boolean true. With
+that opt-in or no pinned backend, ``supports_vision`` (config override or
+catalog) decides. Explicit ``native``/``text`` modes remain absolute overrides.
+``vision_analyze`` stays a tool regardless.
 """
 
 from __future__ import annotations
@@ -261,7 +263,7 @@ def _coerce_mode(raw: Any) -> str:
 
 def _explicit_aux_vision_override(cfg: Optional[dict[str, Any]]) -> bool:
     """True when the user configured a specific ``auxiliary.vision`` backend — the
-    de-facto image route in ``auto`` mode even when the main model has native vision.
+    de-facto image route in ``auto`` mode unless capability-first is enabled.
     ``auto``/empty provider with no model and no base_url is not explicit."""
     vision = _dict_or_empty(_dict_or_empty(_dict_or_empty(cfg).get("auxiliary")).get("vision"))
     return bool(vision) and not (
@@ -381,10 +383,11 @@ def decide_image_input_mode(
 ) -> str:
     """Return ``"native"`` or ``"text"`` for the given turn (``cfg`` None behaves as
     auto; ``requested_provider`` is the identity before runtime canonicalization)."""
-    mode_cfg = _coerce_mode(_dict_or_empty(_dict_or_empty(cfg).get("agent")).get("image_input_mode"))
+    agent_cfg = _dict_or_empty(_dict_or_empty(cfg).get("agent"))
+    mode_cfg = _coerce_mode(agent_cfg.get("image_input_mode"))
     if mode_cfg != "auto":
         return mode_cfg
-    if _explicit_aux_vision_override(cfg):  # auto: an explicit auxiliary.vision backend wins
+    if agent_cfg.get("vision_capability_first") is not True and _explicit_aux_vision_override(cfg):
         return "text"
     # Keep the three-argument call contract for callers/tests that replace the lookup hook.
     extra = {"requested_provider": requested_provider} if requested_provider else {}

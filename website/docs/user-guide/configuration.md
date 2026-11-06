@@ -1514,6 +1514,8 @@ Hermes uses "auxiliary" models for side tasks like image analysis, browser scree
 Earlier builds split aggregator users (OpenRouter, Nous Portal) onto a cheap provider-side default. That was surprising — users who paid for an aggregator subscription would see a different model handling their auxiliary traffic. `auto` now uses the main model for everyone, and per-task overrides in `config.yaml` still win (see [Full auxiliary config reference](#full-auxiliary-config-reference) below).
 :::
 
+For images in `agent.image_input_mode: auto`, explicitly pinning `auxiliary.vision.provider`, `.model`, or `.base_url` selects the describer even when the main model is vision-capable. Set `agent.vision_capability_first: true` to prefer native vision for the active capable model while retaining that pinned describer for text-only or unknown models. The default is `false`; only a real YAML boolean enables it. Explicit `native`/`text` modes and provider tool-result transport vetoes retain their precedence. See [Image Routing](features/vision.md#image-routing-vision-capable-vs-text-only-models) for the full policy.
+
 ### Configuring auxiliary models interactively
 
 Instead of hand-editing YAML, run `hermes model` and pick **"Configure auxiliary models"** from the menu. You'll get an interactive per-task picker:

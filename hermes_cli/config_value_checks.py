@@ -17,6 +17,16 @@ def _validate_voice(config: dict[str, Any], issues: list[ConfigIssue]) -> None:
                "Set voice.submit_mode to direct (submit immediately) or draft (edit before sending)")
 
 
+def _validate_vision_capability_first(config: dict[str, Any], issues: list[ConfigIssue]) -> None:
+    """Only a YAML boolean can opt into capability-first routing."""
+    agent_cfg = config.get("agent")
+    if not isinstance(agent_cfg, dict) or "vision_capability_first" not in agent_cfg:
+        return
+    if not isinstance(agent_cfg["vision_capability_first"], bool):
+        _issue(issues, "error", "agent.vision_capability_first must be a boolean",
+               "Set agent.vision_capability_first to true or false (without quotes)")
+
+
 def _validate_timezone(config: dict[str, Any], issues: list[ConfigIssue]) -> None:
     """``timezone`` must be an IANA name the runtime can load.
 

@@ -209,11 +209,25 @@ To override the automatic choice, set `agent.image_input_mode` in `config.yaml`:
 
 | Value | Behavior |
 |-------|----------|
-| `auto` (default) | Native pixels when the model reports vision support, `vision_analyze` description otherwise. Configuring an explicit `auxiliary.vision` backend (a `provider` other than `auto`, or a `model` / `base_url`) also selects the description path, even for a vision-capable main model. |
+| `auto` (default) | Native pixels when the model reports vision support, `vision_analyze` description otherwise. Configuring an explicit `auxiliary.vision` backend (a `provider` other than `auto`, or a `model` / `base_url`) also selects the description path, even for a vision-capable main model, unless `agent.vision_capability_first: true` is enabled. |
 | `native` | Always attach pixels, even when the catalog says the model is text-only. |
 | `text` | Always route images through the `vision_analyze` describer, never attach pixels to the main request. |
 
-This is the knob to reach for when a backend accepts text but rejects native image input (for example an `openai-codex` account whose backend answers image requests with `server_error`): keep your main model and point `auxiliary.vision` at a different vision-capable provider and model (with `auxiliary.vision.provider: auto` the describer would auto-detect the same main model again). That alone switches images to the description path in `auto` mode; `agent.image_input_mode: text` makes the same choice explicit.
+This is the knob to reach for when a backend accepts text but rejects native image input (for example an `openai-codex` account whose backend answers image requests with `server_error`): keep your main model and point `auxiliary.vision` at a different vision-capable provider and model (with `auxiliary.vision.provider: auto` the describer would auto-detect the same main model again). That alone switches images to the description path in `auto` mode with the default policy; `agent.image_input_mode: text` makes the same choice explicit.
+
+To keep a pinned describer available while preferring the active model's native vision, enable the opt-in policy:
+
+```yaml
+agent:
+  image_input_mode: auto
+  vision_capability_first: true  # default: false
+auxiliary:
+  vision:
+    provider: my-vision-provider
+    model: my-vision-model
+```
+
+Only the YAML boolean `true` enables this option. Quoted strings and other non-boolean values produce an error diagnostic in `hermes doctor` and startup checks; they leave the default precedence in effect. The option applies only to `auto`: a capable active model receives pixels, while a text-only model or unknown capability uses the describer. Explicit `native` and `text` modes keep their existing behavior. Setting the option to `false` restores auxiliary-first precedence. Model switches and fallbacks use the current runtime model's capabilities; declare capabilities per model for mixed custom-provider catalogs.
 
 Which auxiliary model handles the text-description path is configurable under `auxiliary.vision` — see [Auxiliary Models](../configuration.md#auxiliary-models).
 
@@ -224,6 +238,8 @@ The `vision_analyze` tool itself follows the same routing. When the active main 
 For text-only main models (or providers whose tool-result channel doesn't carry images), `vision_analyze` falls back to the legacy path: it asks the configured auxiliary vision model to describe the image and returns the description as plain text. Either way the calling tool signature is the same — the tool decides which path to take at runtime based on the active model.
 
 Every other tool that hands the model an image uses this same decision: browser screenshots, `computer_use` captures (which are described by the auxiliary vision model when the main model can't take them natively), and [MCP image results](mcp.md#image-results). `agent.image_input_mode: text` therefore keeps pixels out of all of them.
+
+Capability-first also applies to this shared tool-result decision. A provider's tool-result transport veto still prevents native embeds, even when the model accepts user-attached images. `vision_analyze` and computer captures then use the auxiliary describer; browser and MCP results retain their existing text/path behavior. This policy adds no fallback triggered by provider errors and leaves auxiliary provider discovery unchanged.
 
 ### SVG and other non-raster images on Responses backends
 
