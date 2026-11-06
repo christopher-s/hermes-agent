@@ -56,6 +56,14 @@ def test_openai_default_only_families_omit_temperature_up_front(model):
         assert _build_call_kwargs("openai-api", accepts, [], temperature=0.1)["temperature"] == 0.1
 
 
+def test_bifrost_routing_alias_omits_temperature_for_unknown_landing_model():
+    """aux-vision can land on Kimi, which rejects the auxiliary default temperature."""
+    assert _fixed_temperature_for_model("aux-vision") is OMIT_TEMPERATURE
+    kwargs = _build_call_kwargs("bifrost", "aux-vision", [{"role": "user", "content": "hi"}], temperature=0.1)
+    assert "temperature" not in kwargs
+    assert _fixed_temperature_for_model("zai/glm-5.3-flash") is None
+
+
 @pytest.mark.parametrize("model", ["gemini-3.6-flash", "google/gemini-3.7-flash", "gemini-3.8-flash", "gemini-4.0-flash", "gemini-4-argon", "google/gemini-4-argon"])
 def test_gemini_36_plus_omits_temperature_up_front(model):
     """Gemini 3.6+ deprecated the sampling controls (temperature/top_p/top_k); omit temperature up

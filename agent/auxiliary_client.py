@@ -603,6 +603,14 @@ def _is_arcee_trinity_thinking(model: Optional[str]) -> bool:
     return _bare_model(model) == "trinity-large-thinking"
 
 
+_BIFROST_ROUTING_ALIASES: frozenset = frozenset({"aux-vision"})
+
+
+def _is_bifrost_routing_alias(model: Optional[str]) -> bool:
+    """True for Bifrost aliases whose upstream model is unknown to the client."""
+    return _bare_model(model) in _BIFROST_ROUTING_ALIASES
+
+
 # Codex OAuth hard-caps gpt-5.4/5.5/5.6 and gpt-6 Astra at 272K (raw API/OpenRouter expose 1.05M);
 # the default 50% trigger would compact at ~136K, so raise to 85% (~231K).
 _CODEX_GPT54_GPT55_COMPACTION_THRESHOLD = 0.85
@@ -667,6 +675,9 @@ def _fixed_temperature_for_model(
     that already rejected it), a fixed ``float``, or ``None``."""
     if _is_kimi_model(model):
         logger.debug("Omitting temperature for Kimi model %r (server-managed)", model)
+        return OMIT_TEMPERATURE
+    if _is_bifrost_routing_alias(model):
+        logger.debug("Omitting temperature for Bifrost routing alias %r (unknown landing model)", model)
         return OMIT_TEMPERATURE
     from agent.gemini_native_adapter import gemini_sampling_deprecated
     if _is_openai_default_temperature_only(model) or gemini_sampling_deprecated(_bare_model(model)):
