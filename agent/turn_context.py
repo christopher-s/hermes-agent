@@ -530,8 +530,8 @@ def _persist_under_lock(agent: Any, fn, failure_msg: str, pending_cli_message: A
 
 
 def _publish_runtime_main(agent: Any) -> None:
-    """Tell auxiliary_client the live main provider/model for this turn (after primary
-    restoration settled the runtime). Never raises: failure loses only the scope."""
+    """Publish the installed main route for auxiliary work at turn start or a route transition.
+    Never raises: failure loses only the scope."""
     with suppress(Exception):
         from agent.auxiliary_client import set_runtime_main
         from agent.prompt_cache_scope import resolve_prompt_cache_scope_safe

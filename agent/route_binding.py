@@ -87,6 +87,8 @@ def bind_route_entry(agent: Any, entry: dict[str, Any], provider: str, model: st
     agent._use_prompt_caching, agent._use_native_cache_layout = agent._anthropic_prompt_cache_policy(
         provider=provider, base_url=base_url, api_mode=api_mode, model=model)
     agent._ensure_lmstudio_runtime_loaded()  # LM Studio: preload before probing context length
+    from agent.turn_context import _publish_runtime_main
+    _publish_runtime_main(agent)  # Auxiliary work below must see the newly installed route.
     _update_fallback_context_compressor(agent)
     _reresolve_fallback_reasoning_config(agent)
     _rescope_fallback_extra_body(agent, old_model, old_provider, old_base_url)
@@ -115,6 +117,8 @@ def reinstall_runtime_snapshot(agent: Any, rt: dict[str, Any]) -> None:
         agent._use_prompt_caching = False
         agent._use_native_cache_layout = False
     _rebuild_primary_client(agent, rt, reason="restore_primary")
+    from agent.turn_context import _publish_runtime_main
+    _publish_runtime_main(agent)  # Compression feasibility may resolve auxiliary clients.
     agent.context_compressor.update_model(
         model=rt["compressor_model"], context_length=rt["compressor_context_length"],
         base_url=rt["compressor_base_url"], api_key=rt["compressor_api_key"],
@@ -146,6 +150,8 @@ def reinstall_primary_runtime(
     _rebind_primary_credential_pool(
         agent, primary_provider, primary_model, matches_primary, load_primary_pool, prefetched_pool, prefetched
     )
+    from agent.turn_context import _publish_runtime_main
+    _publish_runtime_main(agent)  # Pool selection can replace the snapshot's key or endpoint.
     agent._fallback_activated = False
     agent._fallback_index = 0
     agent._rate_limit_backoff_count = 0
