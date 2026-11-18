@@ -1020,10 +1020,42 @@ def _parse_models_payload(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return cache
 
 
+def _endpoint_model_discovery_disabled(base_url: str) -> bool:
+    """True when a config provider entry for this base URL opts out of ``/models`` discovery.
+
+    ``discover_models: false`` is the curated-catalog opt-out (the model picker already honours
+    it); the same flag now governs the endpoint metadata read so a gateway whose catalog is
+    hand-maintained is not re-probed every TTL from the context/pricing paths either. Gating
+    here also suppresses the local-server-type waterfall that prefixes ``/models`` probes for
+    RFC-1918 endpoints (LM Studio ``/api/v1/models``, Ollama ``/api/tags``), which an OpenAI
+    gateway can only answer with 404s."""
+    try:
+        from hermes_cli.config import get_compatible_custom_providers
+        from hermes_cli.route_identity import normalize_route_base_url
+
+        target = normalize_route_base_url(base_url)
+        if not target:
+            return False
+        for entry in get_compatible_custom_providers():
+            if not isinstance(entry, dict):
+                continue
+            if normalize_route_base_url(entry.get("base_url") or "") != target:
+                continue
+            discover = entry.get("discover_models", True)
+            if discover is False or (isinstance(discover, str) and discover.strip().lower() in ("false", "no", "0")):
+                return True
+        return False
+    except Exception:
+        logger.debug("discover_models opt-out lookup failed for %s", base_url, exc_info=True)
+        return False
+
+
 def fetch_endpoint_model_metadata(base_url: str, api_key: str = "", force_refresh: bool = False) -> dict[str, dict[str, Any]]:
     """Model metadata from an OpenAI-compatible ``/models`` endpoint (cached per base URL)."""
     normalized = _normalize_base_url(base_url)
     if not normalized or base_url_host_matches(normalized, "openrouter.ai"):
+        return {}
+    if _endpoint_model_discovery_disabled(normalized):
         return {}
     local = is_local_endpoint(normalized)
     memo_key = _endpoint_memo_key(normalized, api_key)
