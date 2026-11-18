@@ -74,7 +74,7 @@ def coerce_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
                     value, prop_schema, root_schema=parameters
                 )
             continue
-        if not expected and not _schema_allows_null(prop_schema):
+        if not expected and not _schema_allows_null(prop_schema) and not _schema_has_scalar_union(prop_schema):
             continue
         coerced = _coerce_value(value, expected, schema=prop_schema)
         if coerced is not value:
@@ -178,6 +178,19 @@ def _coerce_value(value: str, expected_type, schema: dict | None = None):
     if isinstance(expected_type, list):
         return next((r for t in expected_type if (r := _coerce_value(value, t, schema=schema)) is not value), value)
 
+    # Object unions (anyOf/oneOf) carry no top-level "type"; try each branch's
+    # scalar type through the same coercers, first successful change wins.
+    if not expected_type and isinstance(schema, dict):
+        for union_key in ("anyOf", "oneOf"):
+            branches = schema.get(union_key)
+            if isinstance(branches, list):
+                for branch in branches:
+                    if isinstance(branch, dict) and (bt := branch.get("type")):
+                        r = _coerce_value(value, bt, schema=branch)
+                        if r is not value:
+                            return r
+        return value
+
     coercer = _SCALAR_COERCERS.get(expected_type)
     if coercer is not None:
         return coercer(value)
@@ -195,6 +208,16 @@ def _schema_allows_null(schema: dict | None) -> bool:
         return True
     return any(isinstance(variants := schema.get(union_key), list)
                and any(isinstance(v, dict) and v.get("type") == "null" for v in variants)
+               for union_key in ("anyOf", "oneOf"))
+
+
+def _schema_has_scalar_union(schema: dict | None) -> bool:
+    """True when an anyOf/oneOf union has at least one typed scalar branch, so a
+    string value should be offered to the coercers despite no top-level type."""
+    if not isinstance(schema, dict):
+        return False
+    return any(isinstance(variants := schema.get(union_key), list)
+               and any(isinstance(v, dict) and v.get("type") for v in variants)
                for union_key in ("anyOf", "oneOf"))
 
 

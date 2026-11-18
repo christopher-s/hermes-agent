@@ -394,3 +394,70 @@ class TestCoerceToolArgsNested:
         args = {"todos": [_json.dumps({"id": "1", "content": "x", "status": "pending"})]}
         result = coerce_tool_args("todo_list", args)
         assert result["todos"][0] == {"id": "1", "content": "x", "status": "pending"}
+
+
+# ── anyOf/oneOf object-union scalar coercion (qwen3.8-flash-next "True" bug) ──
+
+
+class TestCoerceToolArgsObjectUnion:
+    """A field declared as anyOf/oneOf of scalar types (no top-level "type")
+    must still coerce string scalars. Previously the missing top-level type made
+    coerce_tool_args skip the field, so a model emitting "True" for a
+    boolean-or-string union (e.g. terminal.notify) left the string uncoerced."""
+
+    def _schema(self, prop):
+        return {
+            "name": "test_tool",
+            "description": "test",
+            "parameters": {"type": "object", "properties": {"flag": prop}},
+        }
+
+    def test_anyof_boolean_string_coerces_capitalized_true(self):
+        schema = self._schema({"anyOf": [{"type": "boolean"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": "True"})
+            assert result["flag"] is True
+
+    def test_anyof_boolean_string_coerces_capitalized_false(self):
+        schema = self._schema({"anyOf": [{"type": "boolean"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": "False"})
+            assert result["flag"] is False
+
+    def test_anyof_integer_string_coerces_number(self):
+        schema = self._schema({"anyOf": [{"type": "integer"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": "42"})
+            assert result["flag"] == 42
+            assert isinstance(result["flag"], int)
+
+    def test_oneof_boolean_string_coerces(self):
+        schema = self._schema({"oneOf": [{"type": "boolean"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": "true"})
+            assert result["flag"] is True
+
+    def test_anyof_non_coercible_string_preserved(self):
+        """A genuine string value no branch can coerce must pass through unchanged."""
+        schema = self._schema({"anyOf": [{"type": "boolean"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": "hello"})
+            assert result["flag"] == "hello"
+
+    def test_anyof_native_bool_unchanged(self):
+        schema = self._schema({"anyOf": [{"type": "boolean"}, {"type": "string"}]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            result = coerce_tool_args("test_tool", {"flag": True})
+            assert result["flag"] is True
+
+    def test_plain_boolean_still_coerces(self):
+        """Regression: plain type:boolean path is unaffected."""
+        schema = self._schema({"type": "boolean"})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            assert coerce_tool_args("test_tool", {"flag": "True"})["flag"] is True
+
+    def test_type_list_union_still_coerces(self):
+        """Regression: type:["boolean","string"] list-union path is unaffected."""
+        schema = self._schema({"type": ["boolean", "string"]})
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            assert coerce_tool_args("test_tool", {"flag": "True"})["flag"] is True
