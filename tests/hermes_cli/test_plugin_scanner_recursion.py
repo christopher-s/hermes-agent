@@ -140,11 +140,13 @@ class TestForeignHarnessManifestDirs:
             )
         )
         for harness in (
+            ".antigravity-plugin",
             ".claude-plugin",
             ".codex-plugin",
             ".cursor-plugin",
             ".devin-plugin",
             ".kimi-plugin",
+            ".muse-plugin",
         ):
             harness_dir = sp / harness
             harness_dir.mkdir(parents=True)
